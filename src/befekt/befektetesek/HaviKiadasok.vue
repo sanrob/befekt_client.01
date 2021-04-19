@@ -1,0 +1,466 @@
+<template>
+    <v-data-table
+        :headers="headers"
+        :items="tetelek"
+        sort-by="hkmSorszam"
+        class="elevation-10"
+        dense
+    >
+        <template v-slot:top>
+            <v-toolbar 
+                dense 
+                flat 
+                color="yellow"
+            >
+                <v-toolbar-title>Havi összesített kiadások</v-toolbar-title>
+                <v-divider
+                    class="mx-4"
+                    inset
+                    vertical
+                ></v-divider>
+                <v-menu
+                    offset-x
+                    v-model="menu"
+                    :close-on-content-click="false"
+                    :nudge-right="10"
+                >
+                    <template v-slot:activator="{ on }">
+                        <v-btn color="primary" class="mb-2" v-on="on">{{ formatEditDate }}</v-btn>
+                    </template>
+                    <v-date-picker
+                        width="200"
+                        v-model="formatPickerInput"
+                        locale="hu-HU"
+                        :max="new Date('2021-03-31').toISOString().substr(0, 10)"
+                        :min="new Date('1998-04-01').toISOString().substr(0, 10)"
+                        @input="menu = false"
+                        type="month"
+                    ></v-date-picker>
+                </v-menu>
+                <v-toolbar-title class="ml-3">(kiválasztott hónap)</v-toolbar-title>
+                <v-spacer></v-spacer>
+                <v-dialog
+                    persistent
+                    v-model="dialog"
+                    max-width="1000px"
+                >
+                    <template v-slot:activator="{ on }">
+                        <v-btn color="primary" class="mb-2" v-on="on">Új tétel</v-btn>
+                    </template>
+                    <v-card>
+                        <v-card-title>
+                            <span class="headline">{{ formTitle }}</span>
+                        </v-card-title>
+                        <v-card-subtitle>
+                            <span class="caption">Bevételek karbantartása</span>
+                        </v-card-subtitle>
+                        <v-card-text>
+                            <v-form
+                                v-model="formValid"
+                                ref="form"
+                            >
+                                <v-container>
+                                    <v-row>
+                                        <v-col cols="2">
+                                            <v-menu
+                                                offset-x
+                                                v-model="menu"
+                                                :close-on-content-click="false"
+                                                :nudge-right="10"
+                                            >
+                                                <template v-slot:activator="{ on, attrs }">
+                                                    <v-text-field
+                                                        label="Bevétel dátuma"
+                                                        v-model="formatEditDate"
+                                                        readonly
+                                                        v-bind="attrs"
+                                                        v-on="on"
+                                                        :rules="rulesBevDatum"
+                                                    ></v-text-field>
+                                                </template>
+                                                <v-date-picker
+                                                    width="250"
+                                                    v-model="formatPickerInput"
+                                                    locale="hu-HU"
+                                                    @input="menu = false"
+                                                ></v-date-picker>
+                                            </v-menu>
+                                        </v-col>
+                                        <v-col cols="5">
+                                            <v-text-field
+                                                v-model="editedItem.bevSzoveg"
+                                                :rules="szovegRules"
+                                                label="Szöveges leírás">
+                                            </v-text-field>
+                                        </v-col>
+                                        <v-col cols="2">
+                                            <v-currency-field 
+                                                label="Bevétel összege" 
+                                                :rules="rulesBevOsszeg"
+                                                :error-messages="errors.rate"
+                                                v-model="editedItem.bevOsszeg"/>
+                                        </v-col>
+                                        <v-col cols="3">
+                                            <v-select 
+                                                label="Bevételi számla"
+                                                :items="szamlak"
+                                                item-text="szaMegnev"
+                                                item-value="szaKod"
+                                                v-model="editedItem.bevSzamla"
+                                                :rules="szamlaRules"
+                                                :disabled="editFieldDisabled"
+                                            >
+                                            </v-select>
+                                        </v-col>
+                                    </v-row>
+                                </v-container>
+                            </v-form>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn 
+                                color="blue darken-1" 
+                                text 
+                                @click="close">
+                                Mégse
+                            </v-btn>
+                            <v-btn 
+                                color="blue darken-1" 
+                                text 
+                                @click="save">
+                                OK
+                            </v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+            </v-toolbar>
+            <confirm
+                :mode="confirmMode" 
+                :dialog="confirmOpen"
+                @IgenValasz="igenValasz"
+                @NemValasz="confirmBezar">
+            </confirm>
+        </template>
+        <template v-slot:item.bevDatum="{ item }">
+            <span>{{ formatDate(item.bevDatum) }}</span>
+        </template>
+        <template v-slot:item.bevAzon="{ item }">
+            <span>{{ item.bevAzon | VMask('N-NNNN/NNNNN') }}</span>
+        </template>
+        <template v-slot:item.bevOsszeg="{ item }">
+            <span>{{ formatNumber(item.bevOsszeg) }}</span>
+        </template>
+        <template v-slot:item.bevSzlaForgAz="{ item }">
+            <span>{{ item.bevSzlaForgAz | VMask('N-NNNN/NNNNN') }}</span>
+        </template>
+        <template v-slot:item.bevHavKonyv="{ item }">
+            <v-simple-checkbox v-model="item.bevHavKonyv" disabled></v-simple-checkbox>
+        </template>
+        <template v-slot:item.action="{ item }">
+            <v-tooltip bottom>
+                <template v-slot:activator="{ on, attrs }">
+                    <v-icon
+                        small
+                        class="mr-1"
+                        @click="editItem(item)"
+                        v-bind="attrs"
+                        v-on="on"
+                    >
+                        mdi-pencil
+                    </v-icon>
+                </template>
+                <span>Bevétel adatainak módosítása</span>
+            </v-tooltip>
+            <v-tooltip bottom>
+                <template v-slot:activator="{ on, attrs }">
+                    <v-icon
+                        small
+                        class="mr-1"
+                        @click="deleteItem(item)"
+                        v-bind="attrs"
+                        v-on="on"
+                    >
+                        mdi-delete
+                    </v-icon>
+                </template>
+                <span>Bevétel törlése</span>
+            </v-tooltip>
+            <v-icon
+                small
+                class="mr-1"
+                @click="konyveles()">
+                mdi-book-open
+            </v-icon>
+            <v-icon
+                small
+                @click="konyvelesTorles()">
+                mdi-book-open-page-variant
+            </v-icon>
+        </template>
+    </v-data-table>
+</template>
+
+<script>
+    import Confirm from '../../utils/Confirm.vue';
+    import moment from 'moment';
+    export default {
+        components: {
+            confirm: Confirm
+        },
+        created () {
+            this.initialize();
+        },
+        data: () => ({
+            dialog: false,                      // Új tétel/Módosítás dialog nyitás vezérlője
+            confirmOpen: false,                 // Megerősítő dialog nyitás vezérlője
+            editedItem: {                       // Editálandó mezők adatai
+                id: '',
+                bevDatum: '',
+                bevAzon: '',
+                bevSzoveg: '',
+                bevOsszeg: '',
+                bevSzamla: '',
+                bevSzlaForgAz: '',
+                bevHavKonyv: false,
+            },
+            defaultItem: {                      // Editálandó mezők default értékei
+                id: '',
+                bevDatum: '',
+                bevAzon: '',
+                bevSzoveg: '',
+                bevOsszeg: '',
+                bevSzamla: '',
+                bevSzlaForgAz: '',
+                bevHavKonyv: false,
+            },
+            headers: [                          // Táblázat oszlopainak leírása
+                {   text: 'Tétel azonosító', 
+                    value: 'hkmAzon',
+                    width: '10%',
+                },
+                {   text: 'Sorszám',
+                    value: 'hkmSorszam',
+                    dataType: "Number",
+                    align: 'end',
+                    sortable: true,
+                    width: '10%',               // Oszlopszélesség. Az összes oszlopot véve ez hány %
+                },
+                {   text: 'Megnevezés', 
+                    value: 'hkmMegnev',
+                    width: '10%',
+                },
+                {   text: 'Elszámolási számla', 
+                    value: 'hkmSzamlaNev',
+                    width: '15%',
+                },
+                {   text: 'Tervezett kiadás', 
+                    value: 'hkmTervOsszeg',
+                    align: 'end',
+                    width: '10%',
+                },
+                {   text: 'Tényleges kiadás', 
+                    value: 'hkmTenyOsszeg',
+                    align: 'end',
+                    width: '10%',
+                },
+                {   text: 'Könyvelve-e', 
+                    value: 'hkmKonyvelve',
+                    width: '10%',
+                },
+                {   text: 'Műveletek',
+                    value: 'action',
+                    sortable: false,
+                },
+            ],
+            tetelek: [],                        // A táblázat tétel adatai
+            szamlak: [],                        // Számlák lista elemei
+            evek: [],                           // A lehetséges könyvelési évek listája
+            bevetelEve: -1,                     // A kiválasztott bevétel éve
+            editedIndex: -1,                    // A táblázat mely sora áll editálás alatt
+            menu: false,                        // A DatePicker mint menü megjelenítés vezérlője
+            formValid: false,                   // A Form(Dialog) adatai összességéban validak-e
+            szovegRules: [                      // Szöveg mező validációs eljárásai
+                v => !!v || 'Szöveg kitöltése kötelező!'
+            ],
+            szamlaRules: [                      // Számla mező validációs eljárásai
+                v => !!v || 'Számla megadása kötelező!'
+            ],
+            errors: {},                         // v-currency mezővel kapcsolatos
+            confirmMode: 'F',                   // Confirm panel adatait határozza meg.
+            torlItem: '',                       // Ha tétel törlésről van szó, a törlendő tétel
+            editFieldDisabled: false,
+            kivHonap: '',
+        }),
+        methods: {
+            async initialize () {               // A kezdő panel létrehozásakor hajtódik végre.
+                try {
+                    this.kivHonap = moment(new Date()).format('YYYY-MM');
+                    this.osszesKiadasokFormUpdate(this.kivHonap);
+                } catch(e) {
+                    alert(e)
+                }
+            },
+            async osszesKiadasokFormUpdate(honap) { // Táblázat feltöltése az adott év bevételeivel
+                try {
+                    const haviKiadasok = await this.$axios.get('http://localhost:8080/havkiadteny/eddigikiadások/' + honap);
+                    this.tetelek = haviKiadasok.data;
+                } catch(e) {
+                    alert(e)
+                }
+            },
+            changeBevetelEve(newEv) {           // Bevétel éve változásakor hajtódik végre
+                if (this.bevetelEve != newEv) {
+                    this.bevetelEve = newEv;
+                    this.osszesBevetelFormUpdate(this.bevetelEve);
+                }
+            },
+            close () {                          // Mégse gombra végrehajtandó
+                this.$refs.form.reset();        // Validáció alapra állítása
+                this.editedItem = Object.assign({}, this.defaultItem)
+                this.editFieldDisabled = false;
+                this.dialog = false;
+                this.editedIndex = -1;
+            },
+            save () {                           // OK gombra végrehajtandó
+                if (this.$refs.form.validate()) { //Csak ha Form tartalma valid
+                    this.confirmMode = 'F';
+                    this.confirmOpen = true;    // Megnyílik a confirm-áló panel.
+                }
+            },
+            confirmBezar: function() {          // Confirm-áló ablak bezárása.
+                this.confirmOpen = false;
+            },
+            igenValasz() {                                  // Confirm panelen: Új tétel fölvétele/Régi módosítása
+                this.confirmBezar();
+                if (this.confirmMode === 'F') {
+                    if (this.editedIndex === -1) {
+                        this.addBevetel();
+                    } else {
+                        this.modifyBevetel();
+                    }
+                } else if (this.confirmMode === 'T') {
+                    this.deleteBevetel();
+                } else if (this.confirmMode === 'K') {
+                    this.konyveles();
+                }
+            },
+            async addBevetel() {                // Új tétel fölvétele
+                try {
+                    await this.$axios.post('http://localhost:8080/bevetels', this.editedItem);
+                    this.close();
+                    this.osszesBevetelFormUpdate(this.bevetelEve);
+                } catch(e) {
+                    alert(e)
+                }
+            },
+            editItem (item) {                   // Tétel módosításánál editálandó mezők beállítása
+                this.editedIndex = this.tetelek.indexOf(item)
+                this.editedItem.id = item.id;
+                this.editedItem.bevDatum = item.bevDatum;
+                this.editedItem.bevAzon = item.bevAzon;
+                this.editedItem.bevSzoveg = item.bevSzoveg;
+                this.editedItem.bevOsszeg = item.bevOsszeg;
+                this.editedItem.bevSzamla = item.bevSzamla;
+                this.editedItem.bevSzlaForgAz = item.bevSzlaForgAz;
+                this.editedItem.bevHavKonyv = item.bevHavKonyv;
+                if (this.editFieldDisabled.bevSzlaForgAz) {
+                    this.editFieldDisabled = true;
+                }
+                this.dialog = true
+            },
+            async modifyBevetel() {             // Korábbi tétel módosítása
+                try {
+                    await this.$axios.put('http://localhost:8080/bevetels', this.editedItem);
+                    this.close();
+                    this.osszesBevetelFormUpdate(this.bevetelEve);
+                } catch(e) {
+                    alert(e)
+                }
+            },
+            deleteItem (item) {                 // Törlés Confirm ablak megnyitása
+                this.torlItem = item
+                this.confirmOpen = true
+                this.confirmMode = 'T'
+            },
+            async deleteBevetel() {             // Tényleges törlés kezdeményezése
+                try {
+                    await this.$axios.delete('http://localhost:8080/bevetels/' + this.torlItem.id);
+                    this.osszesBevetelFormUpdate(this.bevetelEve);
+                } catch(e) {
+                    alert(e)
+                }
+            },
+            formatDate(date) {                  // Táblázatban dátummező formázott megjelenítése
+                return moment(date).format('YYYY.MM.DD');
+            },
+            formatNumber(number) {              // Táblázatban összegmező formázott megjelenítése
+                return number.toLocaleString('hu-HU',  {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            },
+            pozitivSzam(v) {                    // Formázott szám pozitív értékű-e
+                let ret = false;
+                let val = v.replace(" ", "");
+                val = val.replace(",", ".");
+                val = Math.round((parseFloat(val) + Number.EPSILON) * 100) / 100;
+                if (val > 0) {
+                    ret = true;
+                }
+                return ret;
+            },
+            konyveles() {                       // Tétel számlakönyvelése
+            },
+            konyvelesTorles() {                 // Számlakönyvelés törlése
+            },
+        },
+        computed: {
+            formTitle () {                      // Dialog panel címsora
+                return this.editedIndex === -1
+                    ? 'Új bevétel adatsor fölvitele' : 'Bevétel adatsor adatainak módosítása';
+            },
+            formatEditDate() {                              // Editált dátumérték megjelenítése
+                    let ret = this.kivHonap;
+                    if (ret) {
+                        ret = ret.substr(0,4) + "." + ret.substr(5,7);
+                    }
+                    return ret;
+            },
+            formatPickerInput: {                            // A MonthPicker input-ját adja vissza az editált mezőértékből
+                get: function() {                           // A MonthPicker input-ját adja vissza az editált mezőértékből
+                    let ret = this.kivHonap;
+                    if (ret) {
+                        ret = ret.substr(0, 7);
+                    }
+                    return ret;
+                },
+                set: function(value) {                      // Az editált mezőértéket állítja be
+                    if (!(this.kivHonap === value)) {
+                        this.kivHonap = value;
+//                        this.szamlaEgyenlegekFormUpdate(this.kivHonap);
+                    }
+                },
+            },
+            rulesBevDatum () {                  // A bevétel dátumára vonatkozó validációs szabályok
+                const rules = [];
+                const rule1 = v => !!v || 'Bevétel dátumának megadása kötelező!';
+                const rule2 = v => (v && new Date(v) <= new Date()) || 'Nem lehet a mai napnál nagyobb!';
+                const rule3 = v => (v && v.substr(0,4) === this.bevetelEve) || 'Csak a bevétel évebeli dátum lehet!';
+                rules.push(rule1);
+                rules.push(rule2);
+                rules.push(rule3);
+                return rules;
+            },
+            rulesBevOsszeg () {                  // A bevétel összegére vonatkozó validációs szabályok
+                const rules = [];
+                const rule1 = v => !!v || 'Bevétel összegének kitöltése kötelező!';
+                const rule2 = v => (v && this.pozitivSzam(v)) || 'Csak pozitív összeg érték megengedett!';
+                rules.push(rule1);
+                rules.push(rule2);
+                return rules;
+            },
+        },
+        watch: {
+        },
+    }
+</script>
+
+<style>
+</style>

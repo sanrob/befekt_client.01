@@ -1,0 +1,41 @@
+import MainPanel from './befekt/MainPanel.vue';
+import Devizanemek from './befekt/kodadatok/Devizanemek.vue';
+import Szamlavezetok from './befekt/kodadatok/Szamlavezetok.vue';
+import Szamlak from './befekt/kodadatok/Szamlak.vue';
+import BefektEgyedek from './befekt/kodadatok/BefektEgyedek.vue';
+import DevizaArfolyamok from './befekt/alapadatok/DevizaArfolyamok.vue';
+import BefektetesArfolyamok from './befekt/alapadatok/BefektetesArfolyamok.vue';
+import HavKiadTerv from './befekt/alapadatok/HavKiadTerv.vue';
+import Bevetelek from './befekt/befektetesek/Bevetelek.vue';
+import Transzferek from './befekt/befektetesek/Transzferek.vue';
+import Befektetesek from './befekt/befektetesek/Befektetesek.vue';
+import BefektZarasok from './befekt/befektetesek/BefektZarasok.vue';
+import SzamlaKiadasok from './befekt/befektetesek/SzamlaKiadasok.vue';
+import HaviKiadasok from './befekt/befektetesek/HaviKiadasok.vue';
+import PenzForgParositas from './befekt/befektetesek/PenzForgParositas.vue';
+import BefEgyenleg from './befekt/kimutatasok/BefEgyenleg.vue';
+import SzlaEgyenleg from './befekt/kimutatasok/SzlaEgyenleg.vue';
+import Vagyon from './befekt/kimutatasok/Vagyon.vue';
+import EredetiPelda from './befekt/EredetiPelda.vue';
+
+export const routes = [
+    {path: '', component: MainPanel},
+    {path: '/kodadatok/devizanemek', component: Devizanemek},
+    {path: '/kodadatok/szamlavezetok', component: Szamlavezetok},
+    {path: '/kodadatok/szamlak', component: Szamlak},
+    {path: '/kodadatok/befektegyedek', component: BefektEgyedek},
+    {path: '/alapadatok/devizaarfolyamok', component: DevizaArfolyamok},
+    {path: '/alapadatok/befektetesarfolyamok', component: BefektetesArfolyamok},
+    {path: '/alapadatok/havkiadterv', component: HavKiadTerv},
+    {path: '/befektetesek/bevetelek', component: Bevetelek},
+    {path: '/befektetesek/transzferek', component: Transzferek},
+    {path: '/befektetesek/befektetesek', component: Befektetesek},
+    {path: '/befektetesek/befektzarasok', component: BefektZarasok},
+    {path: '/befektetesek/szamlakiadasok', component: SzamlaKiadasok},
+    {path: '/befektetesek/haviKiadasok', component: HaviKiadasok},
+    {path: '/befektetesek/penzforgpar', component: PenzForgParositas},
+    {path: '/kimutatasok/befegyenleg', component: BefEgyenleg},
+    {path: '/kimutatasok/szlaegyenleg', component: SzlaEgyenleg},
+    {path: '/kimutatasok/vagyon', component: Vagyon},
+    {path: '/alapadatok/eredetipelda', component: EredetiPelda}
+];
